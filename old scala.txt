@@ -1,0 +1,77 @@
+def apriori(partition: Iterator[List[String]], support: Float, n_part: Float): Iterator[(Int, mutable.Set[Set[String]])] = {
+    var singleton_counts = mutable.Map.empty[String, Int]
+    var baskets = mutable.MutableList.empty[Set[String]]
+
+    // Count item occurances in each basket in this partition
+    for (list_of_values_grouped_by_key <- partition) {
+      // # Also append the basket to a list contining all baskets
+      baskets += list_of_values_grouped_by_key.toSet
+      for (i <- list_of_values_grouped_by_key) {
+        if (!singleton_counts.contains(i)) {
+          singleton_counts += (i -> 0)
+        }
+        singleton_counts(i) += 1
+      }
+    }
+
+    // Create a set with all singletons that pass the threshhold
+    val freq_itemsets = mutable.Set.empty[Set[String]]
+    for (item <- singleton_counts) {
+      if (item._2 >= support / n_part) {
+        freq_itemsets += Set(item._1)
+      }
+    }
+
+    // # Output frequent sets of size 1 (aka frequent singles)
+    for (singleton <- freq_itemsets) yield (1, singleton)
+
+    // Loop over an increasing k value until no frequent itemsets are found in this partition
+    var k_size = 2
+    breakable {
+      while (k_size > 1) {
+
+        // Generate candidate itemsets for this partition
+        val candidate_itemsets = mutable.Map.empty[Set[String], Int]
+        for (a <- freq_itemsets) {
+          for (b <- freq_itemsets) {
+            val new_itemset = a.union(b).toList.sorted.toSet
+            if (new_itemset.size == k_size) {
+              candidate_itemsets += (new_itemset -> 0)
+            }
+          }
+        }
+
+        // Loop through candidate_itemsets if any were generated
+        if (candidate_itemsets.isEmpty == false) {
+          // Check each candidate pair in each basket
+          for (itemset <- candidate_itemsets) {
+            for (basket <- baskets) {
+              // Count number of baskets that have all itemset elements as frequent items
+              if (itemset._1.subsetOf(basket)) {
+                candidate_itemsets(itemset._1) += 1
+              }
+            }
+          }
+          // Keep only the items which pass the weighted threshold
+          //freq_itemsets = mutable.Set.empty[Set[String]]
+          for ((itemset, count) <- candidate_itemsets) {
+            if (count >= support / n_part) {
+              freq_itemsets += itemset
+            }
+          }
+          // If there are k-sized itemsets yield them and move to the next k
+
+          if (freq_itemsets.isEmpty == false) {
+            for (itemset <- freq_itemsets) yield (k_size, itemset)
+            k_size = k_size + 1
+          }
+          else {
+            break
+          }
+        }
+        else {
+          break
+        }
+      }
+    }
+  }
